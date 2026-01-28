@@ -1,0 +1,41 @@
+# Deploy pdf_file_converter to server via rsync + install-test.sh
+# Secrets: PUBLIC_KEY (SSH private key, raw), SERVER_HOST, SERVER_USER, SERVER_PATH
+
+name: Deploy to server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key
+          chmod 600 private_key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Ensure remote directory exists
+        run: |
+          ssh -i private_key -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p /www/wwwroot/pdf-file-converter/"
+          
+      - name: Copy Project to Test Server
+        run: |
+          rsync -avz --delete -e "ssh -i private_key -o StrictHostKeyChecking=no" \
+            --exclude ".git" --exclude ".github" \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/www/wwwroot/pdf-file-converter/ 
+
+      - name: Install Test App
+        run: |
+          ssh -i private_key -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /www/wwwroot/pdf-file-converter/ &&
+          chmod +x install-test.sh && ./install-test.sh
+          "
